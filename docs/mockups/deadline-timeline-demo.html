@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZenDiary Deadline Timeline Demo</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f4;
+      --panel: #ffffff;
+      --ink: #26302d;
+      --muted: #68736f;
+      --line: #dfe5df;
+      --soft: #eef3ef;
+      --blue: #396a8f;
+      --green: #4f7d61;
+      --amber: #9b6a25;
+      --red: #a64a43;
+      --tag: #365a70;
+      --tag-bg: #eef4f7;
+      --shadow: 0 14px 35px rgba(38, 48, 45, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    main {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 22px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      font-weight: 760;
+    }
+
+    .hint {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+      max-width: 720px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.68);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--green);
+    }
+
+    .dot.fixed { background: var(--blue); }
+    .dot.deadline { background: var(--amber); }
+    .dot.important { background: var(--red); }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .screen {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .screen-head {
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfa;
+    }
+
+    h2 {
+      margin: 0 0 7px;
+      font-size: 17px;
+    }
+
+    .screen-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .screen-body {
+      padding: 16px;
+    }
+
+    .date {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .primary {
+      color: var(--ink);
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .section {
+      margin: 16px 0 18px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 9px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .rail {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 7px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+    }
+
+    .day {
+      min-height: 64px;
+      padding: 8px 6px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--muted);
+      font-size: 11px;
+      overflow: hidden;
+    }
+
+    .day.today {
+      outline: 2px solid rgba(79, 125, 97, 0.22);
+      color: var(--ink);
+    }
+
+    .deadline-chip {
+      display: block;
+      margin-top: 8px;
+      padding: 4px 5px;
+      border-radius: 5px;
+      background: #fff3df;
+      color: #72501f;
+      font-size: 11px;
+      line-height: 1.25;
+      white-space: normal;
+    }
+
+    .event-chip {
+      display: block;
+      margin-top: 8px;
+      padding: 4px 5px;
+      border-radius: 5px;
+      background: #eaf1f5;
+      color: #365a70;
+      font-size: 11px;
+      line-height: 1.25;
+    }
+
+    .more-chip {
+      display: inline-block;
+      margin-top: 5px;
+      padding: 2px 5px;
+      border-radius: 999px;
+      background: #e8eee9;
+      color: #5f6f68;
+      font-size: 10px;
+    }
+
+    .timeline {
+      position: relative;
+      padding-left: 18px;
+    }
+
+    .timeline:before {
+      content: "";
+      position: absolute;
+      left: 5px;
+      top: 2px;
+      bottom: 2px;
+      width: 2px;
+      background: var(--line);
+    }
+
+    .item {
+      position: relative;
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      gap: 10px;
+      margin-bottom: 11px;
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .item:before {
+      content: "";
+      position: absolute;
+      left: -17px;
+      top: 18px;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--blue);
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px var(--line);
+    }
+
+    .time {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    .meta {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .pill {
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: var(--soft);
+      border: 1px solid var(--line);
+    }
+
+    .pill.deadline {
+      background: #fff3df;
+      border-color: #efd4a2;
+      color: #73511e;
+    }
+
+    .pill.today {
+      background: #f8e4e1;
+      border-color: #e6b9b3;
+      color: var(--red);
+    }
+
+    .pill.user {
+      background: var(--tag-bg);
+      border-color: #cbdde6;
+      color: var(--tag);
+    }
+
+    .pool {
+      display: grid;
+      gap: 9px;
+    }
+
+    .todo {
+      display: flex;
+      align-items: start;
+      gap: 10px;
+      padding: 10px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .checkbox {
+      width: 16px;
+      height: 16px;
+      border: 1.5px solid #9ba6a1;
+      border-radius: 4px;
+      margin-top: 2px;
+      flex: 0 0 auto;
+    }
+
+    .todo-main {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .month-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+    }
+
+    .summary {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      background: #faf6ef;
+      color: #654d2b;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 980px) {
+      main { padding: 18px; }
+      header { display: block; }
+      .legend { justify-content: flex-start; margin-top: 14px; }
+      .layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>ZenDiary 周/月视图与 Deadline 演示</h1>
+        <p class="hint">例子：今天是周一。你输入“这周四之前要交表”。它是 Todo，带 deadline；它会在周视图里以 checklist 出现，也会在月视图里作为边界出现，但不会被钉成一个假的固定时间点。</p>
+      </div>
+      <div class="legend">
+        <span><i class="dot fixed"></i>固定事项</span>
+        <span><i class="dot"></i>待办清单</span>
+        <span><i class="dot deadline"></i>截止边界</span>
+        <span><i class="dot important"></i>今天/重要</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="screen">
+        <div class="screen-head">
+          <h2>周视图：截止轨道 + 固定事项 + 待办清单</h2>
+          <p>周视图是默认执行面。固定事项有时间点；待办保持 checklist 手感；标签只显示用户语境，不显示“可推进/今天可做”。</p>
+        </div>
+        <div class="screen-body">
+          <div class="date">
+            <span class="primary">本周 · 周一到周五</span>
+            <span>默认主屏幕</span>
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              <span>本周截止</span>
+              <span>低压力边界</span>
+            </div>
+            <div class="rail">
+              <div class="day today">周一<br>今天</div>
+              <div class="day">周二</div>
+              <div class="day">周三</div>
+              <div class="day">周四<span class="deadline-chip">交表截止</span></div>
+              <div class="day">周五<span class="event-chip">社团例会</span></div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              <span>固定事项</span>
+              <span>真正有时间点</span>
+            </div>
+            <div class="timeline">
+              <div class="item">
+                <div class="time">10:00</div>
+                <div>
+                  <div class="title">上课</div>
+                  <div class="meta"><span class="pill user">高数</span><span class="pill">提前 15 分钟提醒</span></div>
+                </div>
+              </div>
+              <div class="item">
+                <div class="time">15:00</div>
+                <div>
+                  <div class="title">项目会议</div>
+                  <div class="meta"><span class="pill user">项目</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              <span>待办清单</span>
+              <span>仍然归 Todo 管</span>
+            </div>
+            <div class="pool">
+              <div class="todo">
+                <div class="checkbox"></div>
+                <div class="todo-main">
+                  <div class="title">交表</div>
+                  <div class="meta"><span class="pill deadline">周四前截止 · 还剩 3 天</span><span class="pill user">概率论</span></div>
+                </div>
+              </div>
+              <div class="todo">
+                <div class="checkbox"></div>
+                <div class="todo-main">
+                  <div class="title">整理资料</div>
+                  <div class="meta"><span class="pill user">项目</span></div>
+                </div>
+              </div>
+              <div class="todo">
+                <div class="checkbox"></div>
+                <div class="todo-main">
+                  <div class="title">倒垃圾</div>
+                  <div class="meta"><span class="pill user">生活</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="summary">
+            Todo 是事情仓库；周视图只是把本周需要面对的 Todo 拿出来显示。没有固定时间点的事情，不再被强行塞进时间线。
+          </div>
+        </div>
+      </section>
+
+      <section class="screen">
+        <div class="screen-head">
+          <h2>月视图：低压力未来地图</h2>
+          <p>月视图不做具体执行，只显示边界、密度和入口。一天最多显示 1-2 条，更多用 +N 折叠。</p>
+        </div>
+        <div class="screen-body">
+          <div class="date">
+            <span class="primary">七月</span>
+            <span>未来地图</span>
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              <span>本月边界</span>
+              <span>点击天/周进入周视图</span>
+            </div>
+            <div class="month-grid">
+              <div class="day">一</div>
+              <div class="day">二</div>
+              <div class="day">三</div>
+              <div class="day today">四<span class="deadline-chip">交表</span><span class="deadline-chip">小组汇报</span><span class="more-chip">+1</span></div>
+              <div class="day">五<span class="event-chip">例会</span></div>
+              <div class="day">六</div>
+              <div class="day">日</div>
+              <div class="day">8</div>
+              <div class="day">9</div>
+              <div class="day">10<span class="deadline-chip">考试</span></div>
+              <div class="day">11</div>
+              <div class="day">12</div>
+              <div class="day">13</div>
+              <div class="day">14</div>
+              <div class="day">15</div>
+              <div class="day">16</div>
+              <div class="day">17</div>
+              <div class="day">18<span class="deadline-chip">报告</span></div>
+              <div class="day">19</div>
+              <div class="day">20</div>
+              <div class="day">21</div>
+              <div class="day">22</div>
+              <div class="day">23</div>
+              <div class="day">24</div>
+              <div class="day">25</div>
+              <div class="day">26</div>
+              <div class="day">27</div>
+              <div class="day">28</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              <span>选中日期摘要</span>
+              <span>周四</span>
+            </div>
+            <div class="pool">
+              <div class="todo">
+                <div class="checkbox"></div>
+                <div class="todo-main">
+                  <div class="title">交表</div>
+                  <div class="meta"><span class="pill deadline">截止</span><span class="pill user">概率论</span></div>
+                </div>
+              </div>
+              <div class="todo">
+                <div class="checkbox"></div>
+                <div class="todo-main">
+                  <div class="title">小组汇报</div>
+                  <div class="meta"><span class="pill user">项目</span></div>
+                </div>
+              </div>
+              <div class="todo">
+                <div class="checkbox"></div>
+                <div class="todo-main">
+                  <div class="title">另有 1 件</div>
+                  <div class="meta"><span class="pill">进入周视图查看</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="summary">
+            月视图只回答：这个月哪里有边界，哪一周比较挤。普通小待办不进月格子，避免变成又一张拥挤任务表。
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
