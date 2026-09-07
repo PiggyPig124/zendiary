@@ -76,6 +76,10 @@ class TodayFocusCard extends StatelessWidget {
     final kind = focusItem.isEvent ? '课程 / 日程' : '待办';
     final metadata = [
       time,
+      if (focusItem.isEvent)
+        item.location?.trim().isNotEmpty == true
+            ? '地点：${item.location!.trim()}'
+            : '地点待确认',
       kind,
       if (focusItem.warning != null) focusItem.warning!,
     ].join(' · ');

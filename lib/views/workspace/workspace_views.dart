@@ -116,10 +116,7 @@ class TodayView extends ConsumerWidget {
     final rules = ref.watch(reminderRuleProvider);
     final entries = ref.watch(timelineEntriesProvider);
     final list = TodayListService.build(todos: todos, rules: rules, now: now);
-    final missed = TodayMissedService.fromActionable(
-      list.actionable,
-      now: now,
-    );
+    final missed = TodayMissedService.fromActionable(list.actionable, now: now);
     final missedIds = missed.map((todo) => todo.id).toSet();
     final actionable = list.actionable
         .where((todo) => !missedIds.contains(todo.id))
@@ -254,6 +251,17 @@ class TodayView extends ConsumerWidget {
                     showUnifiedItemDetails(context, ref, focusItem.item),
               ),
               const SizedBox(height: 12),
+              DayTimelineSection(
+                day: now,
+                events: events,
+                onEdit: (event) => showUnifiedItemDetails(
+                  context,
+                  ref,
+                  unifiedEventItem(event),
+                ),
+                onItemTap: (item) => showUnifiedItemDetails(context, ref, item),
+              ),
+              const SizedBox(height: 12),
               if (missed.isNotEmpty) ...[
                 TodayMissedSection(
                   todos: missed,
@@ -263,8 +271,7 @@ class TodayView extends ConsumerWidget {
                     ref,
                     unifiedTodoItem(todo, now),
                   ),
-                  onComplete: (todo) =>
-                      _toggleTodayTodo(context, ref, todo),
+                  onComplete: (todo) => _toggleTodayTodo(context, ref, todo),
                   onReschedule: (todo) =>
                       _rescheduleMissedTodo(context, ref, todo, now: now),
                   onUnschedule: (todo) =>
@@ -296,30 +303,12 @@ class TodayView extends ConsumerWidget {
                 const SizedBox(height: 12),
               ],
               _TodaySection(
-                title: '今天要做',
+                title: '待办',
                 icon: Icons.checklist_outlined,
                 emptyText: list.expired.isEmpty && missed.isEmpty
                     ? '今天没有待处理事项'
                     : '其余事项已处理',
                 children: actionable.map(tile).toList(),
-              ),
-              const SizedBox(height: 12),
-              _TodaySection(
-                title: '课程与日程',
-                icon: Icons.event_outlined,
-                emptyText: '今天没有固定时间安排',
-                children: events
-                    .map(
-                      (event) => _WorkspaceItemTile(
-                        item: unifiedEventItem(event),
-                        onTap: () => showUnifiedItemDetails(
-                          context,
-                          ref,
-                          unifiedEventItem(event),
-                        ),
-                      ),
-                    )
-                    .toList(),
               ),
               if (list.later.isNotEmpty) folded('之后', list.later),
               if (reminders.isNotEmpty)
@@ -2305,7 +2294,7 @@ class _UnscheduledStripState extends State<_UnscheduledStrip> {
           const Icon(Icons.drag_indicator, size: 16, color: ZenTheme.textMuted),
           const SizedBox(width: 6),
           Text(
-            _selected.isEmpty ? '待安排' : '已选 ${_selected.length} 项',
+            _selected.isEmpty ? '待办池' : '已选 ${_selected.length} 项',
             style: ZenTheme.labelMedium,
           ),
           const SizedBox(width: 8),
@@ -2368,7 +2357,7 @@ class _UnscheduledStripState extends State<_UnscheduledStrip> {
               ),
               const SizedBox(width: 6),
               Text(
-                _selected.isEmpty ? '待安排' : '已选 ${_selected.length} 项',
+                _selected.isEmpty ? '待办池' : '已选 ${_selected.length} 项',
                 style: ZenTheme.labelMedium,
               ),
               const Spacer(),
@@ -2411,7 +2400,7 @@ class _UnscheduledStripState extends State<_UnscheduledStrip> {
                   size: 16,
                 ),
                 label: Text(
-                  _showAll ? '收起待安排' : '显示其余 ${widget.todos.length - 8} 项',
+                  _showAll ? '收起' : '显示其余 ${widget.todos.length - 8} 项',
                 ),
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -2423,7 +2412,7 @@ class _UnscheduledStripState extends State<_UnscheduledStrip> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('安排到', style: ZenTheme.labelSmall),
+              Text('可选：排进日程', style: ZenTheme.labelSmall),
               const SizedBox(width: 8),
               Expanded(
                 child: Wrap(
@@ -3067,7 +3056,7 @@ class _UnifiedItemDetails extends ConsumerWidget {
                 OutlinedButton.icon(
                   onPressed: () => _scheduleTodoToday(context, ref),
                   icon: const Icon(Icons.today_outlined),
-                  label: Text(item.scheduledAt == null ? '安排今天' : '改到今天'),
+                  label: Text(item.scheduledAt == null ? '排进今天（可选）' : '改到今天'),
                 ),
               ],
               if (canDeferToTomorrow) ...[
@@ -3083,7 +3072,7 @@ class _UnifiedItemDetails extends ConsumerWidget {
                 OutlinedButton.icon(
                   onPressed: () => _scheduleTodo(context, ref),
                   icon: const Icon(Icons.event_available_outlined),
-                  label: Text(item.scheduledAt == null ? '选择计划日期' : '调整计划时间'),
+                  label: Text(item.scheduledAt == null ? '排进日程（可选）' : '调整排期'),
                 ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
@@ -3431,9 +3420,9 @@ class _UnifiedItemDetails extends ConsumerWidget {
       closeDetails: true,
     );
     if (!applied && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('待办已更新，未保存新的计划')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('待办已更新，未保存新的计划')));
     }
   }
 
@@ -5013,9 +5002,7 @@ Future<DateTime?> _pickTodoSchedule(
   required DateTime now,
 }) async {
   final initial =
-      todo.scheduledAt ??
-      suggestTodoSchedule(todo, now)?.scheduledAt ??
-      now;
+      todo.scheduledAt ?? suggestTodoSchedule(todo, now)?.scheduledAt ?? now;
   final date = await showDatePicker(
     context: context,
     firstDate: DateTime(2020),
@@ -5032,13 +5019,7 @@ Future<DateTime?> _pickTodoSchedule(
     initialEntryMode: TimePickerEntryMode.input,
   );
   if (time == null || !context.mounted) return null;
-  return DateTime(
-    date.year,
-    date.month,
-    date.day,
-    time.hour,
-    time.minute,
-  );
+  return DateTime(date.year, date.month, date.day, time.hour, time.minute);
 }
 
 bool _applyTodoSchedule(
@@ -5100,17 +5081,13 @@ Future<void> _rescheduleMissedTodo(
   if (requested == null || !context.mounted) return;
   final applied = _applyTodoSchedule(context, ref, todo.id, requested);
   if (!applied && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('待办已更新，未保存新的计划')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('待办已更新，未保存新的计划')));
   }
 }
 
-void _unscheduleMissedTodo(
-  BuildContext context,
-  WidgetRef ref,
-  TodoTask todo,
-) {
+void _unscheduleMissedTodo(BuildContext context, WidgetRef ref, TodoTask todo) {
   final latest = _currentTodo(ref, todo.id);
   if (latest == null ||
       latest.isCompleted ||

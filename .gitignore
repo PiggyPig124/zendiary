@@ -75,3 +75,4 @@ app.*.map.json
 *.hive
 *.hive.lock
 zendiary_backups/
+/exports/

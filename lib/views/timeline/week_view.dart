@@ -78,12 +78,19 @@ class WeekView extends ConsumerWidget {
         28,
       ),
       children: [
+        _WeekOverviewHeader(weekStart: weekStart, week: week),
+        _WeekSummary(week: week, floatingTodos: floatingTodos),
+        const SizedBox(height: ZenTheme.spaceLg),
         LayoutBuilder(
           builder: (context, constraints) {
             final isTablet =
                 constraints.maxWidth >= 600 && constraints.maxWidth < 980;
-            final cardHeight = isTablet ? 206.0 : 224.0;
-            final visibleCount = ((cardHeight - 102) / 28).floor().clamp(2, 7);
+            final cardHeight = constraints.maxWidth < 600
+                ? 272.0
+                : isTablet
+                ? 188.0
+                : 206.0;
+            final visibleCount = ((cardHeight - 92) / 40).floor().clamp(2, 5);
             final today = DateTime.now();
             final cards = week.days
                 .map(
@@ -181,23 +188,17 @@ class WeekView extends ConsumerWidget {
               );
             }
 
-            return SizedBox(
-              height: cardHeight,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < cards.length; i++) ...[
-                    Expanded(child: cards[i]),
-                    if (i != cards.length - 1)
-                      SizedBox(width: ZenTheme.spaceMd),
-                  ],
-                ],
-              ),
+            final cardWidth = (constraints.maxWidth - ZenTheme.spaceLg) / 2;
+            return Wrap(
+              spacing: ZenTheme.spaceLg,
+              runSpacing: ZenTheme.spaceLg,
+              children: [
+                for (final card in cards)
+                  SizedBox(width: cardWidth, height: cardHeight, child: card),
+              ],
             );
           },
         ),
-        const SizedBox(height: 10),
-        _WeekSummary(week: week, floatingTodos: floatingTodos),
       ],
     );
   }
@@ -227,13 +228,15 @@ class WeekView extends ConsumerWidget {
     // A week-card drop is still a real execution plan. Use the same
     // estimate-aware slot finder as batch planning so dragging two tasks to
     // one day does not silently stack both at 09:00 or overlap a class.
-    final requested = suggestTodoBatchSlots(
-      [todo],
-      targetDay,
-      now,
-      events: _eventsForDay(ref, targetDay),
-      scheduledTodos: ref.read(todoListProvider),
-    )[todo.id] ?? suggestedTodoScheduleForDay(targetDay, now);
+    final requested =
+        suggestTodoBatchSlots(
+          [todo],
+          targetDay,
+          now,
+          events: _eventsForDay(ref, targetDay),
+          scheduledTodos: ref.read(todoListProvider),
+        )[todo.id] ??
+        suggestedTodoScheduleForDay(targetDay, now);
     final safeDate = respectTodoOpening(todo, requested);
     final previous = todo.scheduledAt;
     ref.read(todoListProvider.notifier).rescheduleTodo(todo.id, safeDate);
@@ -264,6 +267,78 @@ class WeekView extends ConsumerWidget {
       floatingTodoPolicy: TimelineFloatingTodoPolicy.exclude,
     ).events;
     return [...entries, ...projected];
+  }
+}
+
+class _WeekOverviewHeader extends StatelessWidget {
+  final DateTime weekStart;
+  final WeekTimelineSummary week;
+
+  const _WeekOverviewHeader({required this.weekStart, required this.week});
+
+  @override
+  Widget build(BuildContext context) {
+    final end = weekStart.add(const Duration(days: 6));
+    final crossesYear = weekStart.year != end.year;
+    final range = crossesYear
+        ? '${DateFormat('yyyy.M.d').format(weekStart)} — ${DateFormat('yyyy.M.d').format(end)}'
+        : '${DateFormat('M月d日').format(weekStart)} — ${DateFormat('M月d日').format(end)}';
+    final activeDays = week.days.where((day) => day.totalCount > 0).length;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: ZenTheme.spaceXl,
+        vertical: ZenTheme.spaceLg,
+      ),
+      decoration: BoxDecoration(
+        color: ZenTheme.backgroundWarm,
+        borderRadius: BorderRadius.circular(ZenTheme.radiusCard),
+        border: Border.all(color: ZenTheme.borderSubtle),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: ZenTheme.accentMatcha.withValues(alpha: 0.13),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(
+              Icons.calendar_view_week_outlined,
+              color: ZenTheme.accentMatcha,
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: ZenTheme.spaceMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '本周安排',
+                  style: ZenTheme.textStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: ZenTheme.textHeading,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(range, style: ZenTheme.caption),
+              ],
+            ),
+          ),
+          Text(
+            '$activeDays 天有安排',
+            style: ZenTheme.textStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: ZenTheme.textMuted,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -423,39 +498,78 @@ class _WeekDayCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
               ],
-              const SizedBox(height: ZenTheme.spaceMd),
-              // 星期 + 日期
+              const SizedBox(height: ZenTheme.spaceSm),
+              // 日期是每天的视觉锚点，状态信息收在右侧，避免窄卡片拥挤。
               Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    _weekdayLabel(summary.day.weekday),
-                    style: ZenTheme.textStyle(
-                      fontSize: 12,
-                      color: isWeekend
-                          ? ZenTheme.textWeekend
-                          : ZenTheme.textMuted,
+                  Container(
+                    width: 36,
+                    height: 36,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: isToday
+                          ? ZenTheme.statusToday
+                          : ZenTheme.backgroundWarm,
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Text(
+                      DateFormat('d').format(summary.day),
+                      style: ZenTheme.textStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: isToday
+                            ? ZenTheme.backgroundCard
+                            : ZenTheme.textHeading,
+                      ),
                     ),
                   ),
-                  Text(
-                    DateFormat('d').format(summary.day),
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: ZenTheme.textBody,
-                    ),
+                  const SizedBox(width: ZenTheme.spaceSm),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _weekdayLabel(summary.day.weekday),
+                        style: ZenTheme.textStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isWeekend
+                              ? ZenTheme.textWeekend
+                              : ZenTheme.textHeading,
+                        ),
+                      ),
+                      Text(
+                        isToday ? '今天' : DateFormat('M月').format(summary.day),
+                        style: ZenTheme.caption,
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Flexible(child: _Badges(summary: summary)),
+                  const SizedBox(width: ZenTheme.spaceXs),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: ZenTheme.textMuted.withValues(alpha: 0.7),
                   ),
                 ],
               ),
-              const SizedBox(height: ZenTheme.spaceMd),
-              _Badges(summary: summary),
-              const SizedBox(height: 7),
+              const SizedBox(height: ZenTheme.spaceSm),
+              Divider(
+                height: 1,
+                color: ZenTheme.borderSubtle.withValues(alpha: 0.8),
+              ),
+              const SizedBox(height: ZenTheme.spaceXs),
               Expanded(
                 child: visibleItems.isEmpty
                     ? Align(
-                        alignment: Alignment.topLeft,
-                        child: const SizedBox.shrink(),
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '留白',
+                          style: ZenTheme.textStyle(
+                            fontSize: 12,
+                            color: ZenTheme.textMuted.withValues(alpha: 0.7),
+                          ),
+                        ),
                       )
                     : Column(
                         children: [
@@ -474,12 +588,12 @@ class _WeekDayCard extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: ZenTheme.spaceXs),
                   child: Text(
-                    '+$overflow 条 · 点击进入日视图',
+                    '还有 $overflow 条 · 查看当天',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: ZenTheme.textStyle(
                       fontSize: 11,
-                      color: ZenTheme.textMuted,
+                      color: ZenTheme.accentMatcha,
                     ),
                   ),
                 ),
@@ -542,7 +656,7 @@ class _Badges extends StatelessWidget {
       children: [
         if (activeEventCount > 0)
           _Badge(
-            label: '$activeEventCount 事',
+            label: '$activeEventCount 日程',
             dotColor: ZenTheme.interactiveBrown,
           ),
         if (completedEventCount > 0)
@@ -554,14 +668,14 @@ class _Badges extends StatelessWidget {
           ),
         if (summary.deadlineCount > 0)
           _Badge(
-            label: '${summary.deadlineCount} 截',
+            label: '${summary.deadlineCount} 截止',
             color: ZenTheme.statusDeadlineBg,
             textColor: ZenTheme.statusDeadlineText,
             dotColor: ZenTheme.statusToday,
           ),
         if (summary.todoCount > 0)
           _Badge(
-            label: '${summary.todoCount} 待',
+            label: '${summary.todoCount} 待办',
             color: ZenTheme.statusTodoBg,
             textColor: ZenTheme.statusUpcoming,
             dotColor: ZenTheme.statusUpcoming,
@@ -583,6 +697,7 @@ class _WeekItemLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDeadline = item.type == TimelineDayItemType.deadline;
+    final isEvent = item.type == TimelineDayItemType.event;
     final isCompleted = item.isCompleted;
     final textColor = isDeadline
         ? ZenTheme.statusDeadlineText
@@ -594,15 +709,16 @@ class _WeekItemLine extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(ZenTheme.radiusXs),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
+        padding: const EdgeInsets.symmetric(vertical: 5),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (isCompleted) ...[
               const Icon(Icons.check, size: 10, color: ZenTheme.textCompleted),
               const SizedBox(width: 3),
             ],
             SizedBox(
-              width: 36,
+              width: 43,
               child: Text(
                 _leadingText(item),
                 maxLines: 1,
@@ -610,21 +726,54 @@ class _WeekItemLine extends StatelessWidget {
                 style: ZenTheme.textStyle(fontSize: 11, color: textColor),
               ),
             ),
-            const SizedBox(width: 5),
+            const SizedBox(width: 7),
             Expanded(
-              child: Text(
-                item.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: ZenTheme.textStyle(
-                  fontSize: 12,
-                  color: isDeadline
-                      ? ZenTheme.statusDeadlineText
-                      : isCompleted
-                      ? ZenTheme.textCompleted
-                      : ZenTheme.textHeading,
-                  decoration: isCompleted ? TextDecoration.lineThrough : null,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: ZenTheme.textStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: isDeadline
+                          ? ZenTheme.statusDeadlineText
+                          : isCompleted
+                          ? ZenTheme.textCompleted
+                          : ZenTheme.textHeading,
+                      decoration: isCompleted
+                          ? TextDecoration.lineThrough
+                          : null,
+                    ),
+                  ),
+                  if (isEvent && item.meta?.trim().isNotEmpty == true)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 1),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.place_outlined,
+                            size: 11,
+                            color: ZenTheme.textMuted,
+                          ),
+                          const SizedBox(width: 2),
+                          Expanded(
+                            child: Text(
+                              item.meta!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: ZenTheme.textStyle(
+                                fontSize: 10,
+                                color: ZenTheme.textMuted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
             ),
           ],
@@ -740,14 +889,14 @@ class _WeekSummary extends StatelessWidget {
           if (scheduledTodoCount > 0)
             _CompactSummaryMetric(
               icon: Icons.checklist_outlined,
-              label: '待办',
+              label: '已排期',
               count: scheduledTodoCount,
               color: ZenTheme.statusUpcoming,
             ),
           if (unscheduledCount > 0)
             _CompactSummaryMetric(
               icon: Icons.inbox_outlined,
-              label: '待安排',
+              label: '待办',
               count: unscheduledCount,
               color: ZenTheme.textMuted,
             ),

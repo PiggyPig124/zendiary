@@ -270,25 +270,28 @@ void main() {
       expect(normalized.eventTime, DateTime(2026, 9, 5, 17));
     });
 
-    test('date-only study wording becomes an attention date without an execution time', () {
-      final now = DateTime(2026, 9, 4, 14);
-      final normalized = AIService.normalizeStudentIntent(
-        AiParsedIntent(
-          category: 'todo',
-          todos: const ['复习高数'],
-          // Models trained on the older prompt sometimes put every date-only
-          // phrase into todo_deadline. The capture normalizer should repair
-          // that when the source has no due-date wording.
-          todoDeadline: DateTime(2026, 9, 5, 23, 59),
-        ),
-        sourceText: '明天复习高数',
-        now: now,
-      );
+    test(
+      'date-only study wording becomes an attention date without an execution time',
+      () {
+        final now = DateTime(2026, 9, 4, 14);
+        final normalized = AIService.normalizeStudentIntent(
+          AiParsedIntent(
+            category: 'todo',
+            todos: const ['复习高数'],
+            // Models trained on the older prompt sometimes put every date-only
+            // phrase into todo_deadline. The capture normalizer should repair
+            // that when the source has no due-date wording.
+            todoDeadline: DateTime(2026, 9, 5, 23, 59),
+          ),
+          sourceText: '明天复习高数',
+          now: now,
+        );
 
-      expect(normalized.category, 'todo');
-      expect(normalized.attentionDate, DateTime(2026, 9, 5));
-      expect(normalized.todoDeadline, isNull);
-    });
+        expect(normalized.category, 'todo');
+        expect(normalized.attentionDate, DateTime(2026, 9, 5));
+        expect(normalized.todoDeadline, isNull);
+      },
+    );
 
     test('date-only delivery wording remains a deadline', () {
       final normalized = AIService.normalizeStudentIntent(
@@ -1263,6 +1266,26 @@ void main() {
     expect(unifiedEventItem(event).title, '学习小组 · 图书馆');
   });
 
+  test(
+    'imported timetable event keeps its course title instead of schedule summary',
+    () {
+      final event = DiaryEntry(
+        id: 'aims-course',
+        content: '[CS2115-C01] Computer Organization · Lecture',
+        timestamp: DateTime(2026, 9, 6),
+        category: 'event',
+        eventTime: DateTime(2026, 9, 7, 12),
+        location: 'BOC R4057',
+        aiSummary: '每周一 12:00–14:50',
+        tags: const ['CS2115', 'AIMS', 'Lecture'],
+      );
+
+      final item = unifiedEventItem(event);
+      expect(item.title, '[CS2115-C01] Computer Organization · Lecture');
+      expect(item.location, 'BOC R4057');
+    },
+  );
+
   test('unified todo can display a specific recurring occurrence', () {
     final sourceSchedule = DateTime(2026, 9, 3, 9);
     final occurrence = DateTime(2026, 9, 4, 9);
@@ -1585,44 +1608,47 @@ void main() {
     },
   );
 
-  test('recurrence override can explicitly clear source duration and location', () {
-    final anchor = DateTime(2026, 7, 1, 9);
-    final event = DiaryEntry(
-      id: 'clear-recurring-fields',
-      content: '周课',
-      timestamp: anchor,
-      category: 'event',
-      eventTime: anchor,
-      durationMinutes: 90,
-      location: 'B203',
-    );
-    final rule = ReminderRule(
-      id: 'clear-recurring-fields-rule',
-      title: '周课',
-      targetType: 'event',
-      targetId: event.id,
-      scheduleType: 'weekly',
-      byDay: const [3],
-      anchorTime: anchor,
-      overrides: [
-        RecurrenceOverride(
-          originalDate: DateTime(2026, 7, 8),
-          clearDurationMinutes: true,
-          clearLocation: true,
-        ),
-      ],
-    );
+  test(
+    'recurrence override can explicitly clear source duration and location',
+    () {
+      final anchor = DateTime(2026, 7, 1, 9);
+      final event = DiaryEntry(
+        id: 'clear-recurring-fields',
+        content: '周课',
+        timestamp: anchor,
+        category: 'event',
+        eventTime: anchor,
+        durationMinutes: 90,
+        location: 'B203',
+      );
+      final rule = ReminderRule(
+        id: 'clear-recurring-fields-rule',
+        title: '周课',
+        targetType: 'event',
+        targetId: event.id,
+        scheduleType: 'weekly',
+        byDay: const [3],
+        anchorTime: anchor,
+        overrides: [
+          RecurrenceOverride(
+            originalDate: DateTime(2026, 7, 8),
+            clearDurationMinutes: true,
+            clearLocation: true,
+          ),
+        ],
+      );
 
-    final projected = projectRecurringEvents(
-      day: DateTime(2026, 7, 8),
-      events: [event],
-      rules: [rule],
-    );
+      final projected = projectRecurringEvents(
+        day: DateTime(2026, 7, 8),
+        events: [event],
+        rules: [rule],
+      );
 
-    expect(projected, hasLength(1));
-    expect(projected.single.durationMinutes, isNull);
-    expect(projected.single.location, isNull);
-  });
+      expect(projected, hasLength(1));
+      expect(projected.single.durationMinutes, isNull);
+      expect(projected.single.location, isNull);
+    },
+  );
 
   test(
     'moved recurrence resolves its source date before native destination occurrence',

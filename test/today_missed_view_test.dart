@@ -128,10 +128,11 @@ void main() {
       expect(find.text('安排已过，尚未完成 (1)'), findsOneWidget);
       expect(find.text('没做完也没关系，重新安排或先保留为待办。'), findsOneWidget);
       expect(find.textContaining('原定 9月5日 09:00–9月5日 09:30'), findsOneWidget);
-      expect(find.text('今天要做 (0)'), findsOneWidget);
+      expect(find.text('待办 (0)'), findsOneWidget);
       expect(find.text('今天没有待处理事项'), findsNothing);
       expect(tester.takeException(), isNull);
 
+      await tester.ensureVisible(find.text(todo.title));
       await tester.tap(find.text(todo.title));
       await tester.pumpAndSettle();
       expect(find.text('完成待办'), findsOneWidget);
@@ -204,7 +205,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(todos.state.single.scheduledAt, isNull);
     expect(find.byType(TodayMissedSection), findsNothing);
-    expect(find.text('今天要做 (1)'), findsOneWidget);
+    expect(find.text('待办 (1)'), findsOneWidget);
 
     await tester.tap(find.text('撤销'));
     await tester.pumpAndSettle();
@@ -279,9 +280,14 @@ void main() {
       await pumpToday(tester, clock: clock, todos: todos);
       final previous = todo.scheduledAt;
 
-      await tester.tap(find.text(todo.title));
+      final missedTitle = find.descendant(
+        of: find.byType(TodayMissedSection),
+        matching: find.text(todo.title),
+      );
+      await tester.ensureVisible(missedTitle);
+      await tester.tap(missedTitle);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('调整计划时间'));
+      await tester.tap(find.text('调整排期'));
       await tester.pumpAndSettle();
 
       final dateDialog = find.byType(DatePickerDialog);
@@ -309,7 +315,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(TimePickerDialog), findsNothing);
-      expect(find.text('调整计划时间'), findsNothing);
+      expect(find.text('调整排期'), findsNothing);
       expect(todos.state.single.scheduledAt, isNot(previous));
       expect(tester.takeException(), isNull);
 

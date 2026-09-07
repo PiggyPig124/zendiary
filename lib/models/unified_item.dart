@@ -56,12 +56,15 @@ String compactItemTitle(String title) {
 
 UnifiedItem unifiedEventItem(DiaryEntry event) {
   final summary = event.aiSummary?.trim();
+  final isImportedTimetableEvent = event.tags.contains('AIMS');
   return UnifiedItem(
     id: event.id,
     sourceId: event.id,
     source: UnifiedItemSource.event,
     title: compactItemTitle(
-      summary?.isNotEmpty == true ? summary! : event.content,
+      isImportedTimetableEvent || summary?.isNotEmpty != true
+          ? event.content
+          : summary!,
     ),
     startAt: event.eventTime,
     endAt: event.endTime,

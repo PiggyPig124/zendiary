@@ -12,6 +12,7 @@ import '../../providers/app_providers.dart';
 import '../../providers/reminder_rule_provider.dart';
 import '../../services/planner_service.dart';
 import '../../services/recurrence_service.dart';
+import '../../services/today_list_service.dart';
 import 'timeline_data.dart';
 import 'timeline_shared.dart';
 
@@ -33,7 +34,7 @@ class DayView extends ConsumerWidget {
     final todos = ref.watch(todoListProvider);
     final rules = ref.watch(reminderRuleProvider);
     final now = DateTime.now();
-    final summary = buildTimelineDaySummary(
+    final baseSummary = buildTimelineDaySummary(
       day: day,
       events: events,
       todos: todos,
@@ -45,6 +46,16 @@ class DayView extends ConsumerWidget {
       floatingTodoPolicy: TimelineFloatingTodoPolicy.exclude,
       rules: rules,
     );
+    final summary = isSameDay(day, now)
+        ? _mergeTodayActionables(
+            baseSummary,
+            TodayListService.build(
+              todos: todos,
+              rules: rules,
+              now: now,
+            ).actionable,
+          )
+        : baseSummary;
 
     if (summary.totalCount == 0 && summary.completedCount == 0) {
       return _EmptyDay(day: day);
@@ -60,7 +71,7 @@ class DayView extends ConsumerWidget {
       children: [
         _DaySummaryHeader(summary: summary),
         const SizedBox(height: ZenTheme.sectionGap),
-        _FixedTimeSection(
+        DayTimelineSection(
           day: day,
           events: summary.events,
           onEdit: (entry) => _showEditDialog(context, ref, entry),
@@ -194,6 +205,41 @@ class DayView extends ConsumerWidget {
   }
 }
 
+TimelineDaySummary _mergeTodayActionables(
+  TimelineDaySummary summary,
+  Iterable<TodoTask> todayActionables,
+) {
+  final existingIds = {
+    ...summary.deadlineTodos.map((todo) => todo.id),
+    ...summary.actionTodos.map((todo) => todo.id),
+  };
+  final additions = todayActionables
+      .where((todo) => existingIds.add(todo.id))
+      .toList();
+  if (additions.isEmpty) return summary;
+  final actionTodos = [...summary.actionTodos, ...additions]
+    ..sort(TodayListService.compare);
+  return TimelineDaySummary(
+    day: summary.day,
+    events: summary.events,
+    deadlineTodos: summary.deadlineTodos,
+    actionTodos: actionTodos,
+    completedTodos: summary.completedTodos,
+    items: [
+      ...summary.items,
+      ...additions.map(
+        (todo) => TimelineDayItem(
+          type: TimelineDayItemType.todo,
+          id: todo.id,
+          title: todo.title,
+          time: todo.scheduledAt ?? todo.deadline,
+          meta: todo.scheduledAt == null ? 'today' : 'scheduled',
+        ),
+      ),
+    ],
+  );
+}
+
 // ── 日摘要头部 ──
 
 class _DaySummaryHeader extends StatelessWidget {
@@ -276,14 +322,14 @@ class _DaySummaryHeader extends StatelessWidget {
 
 // ── 固定时间 section ──
 
-class _FixedTimeSection extends StatelessWidget {
+class DayTimelineSection extends StatelessWidget {
   final DateTime day;
   final List<DiaryEntry> events;
   final ValueChanged<DiaryEntry> onEdit;
   final void Function(DiaryEntry entry, DateTime startAt)? onReschedule;
   final ValueChanged<UnifiedItem>? onItemTap;
 
-  const _FixedTimeSection({
+  const DayTimelineSection({
     required this.day,
     required this.events,
     required this.onEdit,
@@ -371,8 +417,11 @@ class TimelineRailLayout {
 }
 
 class _FixedTimeRail extends StatelessWidget {
-  static const double railLeft = 70;
-  static const double eventLeft = 112;
+  // Keep the rail compact enough to fit when reused inside Today's narrower
+  // content column. The event card still gets at least ~100 px on a 390 px
+  // phone with the desktop navigation rail visible.
+  static const double railLeft = 40;
+  static const double eventLeft = 68;
   static const double topInset = 22;
   static const double bottomInset = 22;
   static const double endpointSize = 10;
@@ -555,18 +604,24 @@ class _NowLine extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: railLeft - 12,
-            child: Text(
-              label,
-              textAlign: TextAlign.right,
-              style: ZenTheme.textStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: ZenTheme.statusToday,
+            width: railLeft - 4,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                label,
+                maxLines: 1,
+                softWrap: false,
+                textAlign: TextAlign.right,
+                style: ZenTheme.textStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: ZenTheme.statusToday,
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 4),
           Container(
             width: 10,
             height: 10,
@@ -745,32 +800,10 @@ class _TimelineEventRowState extends ConsumerState<_TimelineEventRow> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            DateFormat('HH:mm').format(widget.entry.sortTime),
-                            style: ZenTheme.textStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: completed
-                                  ? ZenTheme.textCompleted
-                                  : ZenTheme.accentMatcha,
-                            ),
-                          ),
-                          if (widget.entry.endTime != null) ...[
-                            const SizedBox(width: 4),
-                            Text(
-                              '–${DateFormat('HH:mm').format(widget.entry.endTime!)}',
-                              style: ZenTheme.textStyle(
-                                fontSize: 11,
-                                color: completed
-                                    ? ZenTheme.textCompleted
-                                    : ZenTheme.textMuted,
-                              ),
-                            ),
-                          ],
-                          const SizedBox(width: 6),
-                          if (isProjected)
-                            Tooltip(
+                          if (isProjected) ...[
+                            const Tooltip(
                               message: '重复实例（完成仅影响当天）',
                               child: Icon(
                                 Icons.repeat,
@@ -778,13 +811,22 @@ class _TimelineEventRowState extends ConsumerState<_TimelineEventRow> {
                                 color: ZenTheme.textMuted,
                               ),
                             ),
-                          if (isProjected) const SizedBox(width: 4),
+                            const SizedBox(width: 4),
+                          ],
                           Expanded(
                             child: Text(
-                              widget.entry.location ?? '',
-                              maxLines: 1,
+                              '${DateFormat('HH:mm').format(widget.entry.sortTime)}'
+                              '${widget.entry.endTime == null ? '' : '–${DateFormat('HH:mm').format(widget.entry.endTime!)}'}'
+                              '${widget.entry.location?.trim().isNotEmpty == true ? ' · ${widget.entry.location!.trim()}' : ''}',
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: ZenTheme.labelSmall,
+                              style: ZenTheme.textStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: completed
+                                    ? ZenTheme.textCompleted
+                                    : ZenTheme.accentMatcha,
+                              ),
                             ),
                           ),
                         ],
@@ -810,27 +852,28 @@ class _TimelineEventRowState extends ConsumerState<_TimelineEventRow> {
                     ],
                   ),
                 ),
-                AnimatedOpacity(
-                  opacity: _isHovered ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 150),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _actionButton(
-                        icon: Icons.edit_outlined,
-                        tooltip: '编辑',
-                        color: ZenTheme.textMuted,
-                        onPressed: widget.onEdit,
-                      ),
-                      _actionButton(
-                        icon: Icons.close,
-                        tooltip: '删除',
-                        color: ZenTheme.textCompleted,
-                        onPressed: () => _confirmDelete(context),
-                      ),
-                    ],
+                if (MediaQuery.sizeOf(context).width >= 560)
+                  AnimatedOpacity(
+                    opacity: _isHovered ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 150),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _actionButton(
+                          icon: Icons.edit_outlined,
+                          tooltip: '编辑',
+                          color: ZenTheme.textMuted,
+                          onPressed: widget.onEdit,
+                        ),
+                        _actionButton(
+                          icon: Icons.close,
+                          tooltip: '删除',
+                          color: ZenTheme.textCompleted,
+                          onPressed: () => _confirmDelete(context),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
               ],
             ),
           ),

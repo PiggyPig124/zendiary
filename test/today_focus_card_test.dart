@@ -15,6 +15,7 @@ void main() {
         id: 'current',
         source: UnifiedItemSource.event,
         title: '当前课程',
+        location: 'BOC R4057',
       ),
       startAt: DateTime(2026, 9, 5, 9),
       endAt: DateTime(2026, 9, 5, 10, 30),
@@ -52,6 +53,7 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('当前安排'), findsOneWidget);
     expect(find.text('当前课程'), findsOneWidget);
+    expect(find.textContaining('地点：BOC R4057'), findsOneWidget);
     expect(find.text('接下来'), findsOneWidget);
     await tester.tap(find.text('下一项作业'));
     expect(tapped?.item.id, 'next');

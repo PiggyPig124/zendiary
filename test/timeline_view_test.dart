@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:zendiary/core/theme/zen_theme.dart';
 import 'package:zendiary/models/diary_entry.dart';
@@ -11,6 +12,7 @@ import 'package:zendiary/providers/reminder_rule_provider.dart';
 import 'package:zendiary/views/timeline/timeline_view.dart';
 import 'package:zendiary/views/timeline/timeline_shared.dart';
 import 'package:zendiary/views/timeline/month_view.dart';
+import 'package:zendiary/views/timeline/day_view.dart';
 
 class _TimelineRuleNotifier extends ReminderRuleNotifier {
   @override
@@ -88,6 +90,40 @@ void main() {
     expect(find.text('程序设计'), findsOneWidget);
 
     addTearDown(() => tester.binding.setSurfaceSize(null));
+  });
+
+  testWidgets('day view mirrors todays active unscheduled todos', (
+    tester,
+  ) async {
+    await initializeDateFormatting('zh_CN', null);
+    final now = DateTime.now();
+    final todo = TodoTask(
+      id: 'today-attention-todo',
+      title: '今天已经开始关注的作业',
+      createdAt: now.subtract(const Duration(days: 2)),
+      attentionDate: DateTime(now.year, now.month, now.day),
+      deadline: now.add(const Duration(days: 10)),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          timelineEntriesProvider.overrideWith((ref) => const []),
+          todoListProvider.overrideWith(
+            () => _TimelineTodoDataNotifier([todo]),
+          ),
+          reminderRuleProvider.overrideWith(_TimelineRuleNotifier.new),
+        ],
+        child: MaterialApp(
+          theme: ZenTheme.lightTheme,
+          home: Scaffold(body: DayView(day: now)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('今天已经开始关注的作业'), findsOneWidget);
+    expect(find.text('截止与待办'), findsOneWidget);
   });
 
   testWidgets('recurring occurrence dialog explains shared reminder rules', (

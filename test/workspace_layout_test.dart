@@ -54,7 +54,6 @@ class _SeededLayoutNotebookNotifier extends NotebookListNotifier {
 }
 
 class _LayoutReminderRuleNotifier extends ReminderRuleNotifier {
-
   @override
   List<ReminderRule> build() {
     return const [];
@@ -150,14 +149,15 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull, reason: 'layout $size');
-      expect(find.text('今天要做 (8)'), findsOneWidget);
+      expect(find.text('待办 (8)'), findsOneWidget);
       expect(find.text('现在安排'), findsNothing);
       await tester.scrollUntilVisible(
-        find.text('课程与日程 (1)'),
+        find.text('固定时间'),
         250,
         scrollable: find.byType(Scrollable).first,
       );
-      expect(find.text('课程与日程 (1)'), findsOneWidget);
+      expect(find.text('固定时间'), findsOneWidget);
+      expect(find.text('下一节课'), findsAtLeastNWidgets(1));
     }
 
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -206,7 +206,7 @@ void main() {
 
     expect(find.text('夜间实验室'), findsOneWidget);
     expect(find.text('清晨测验'), findsOneWidget);
-    expect(find.text('课程与日程 (2)'), findsOneWidget);
+    expect(find.text('固定时间'), findsOneWidget);
     addTearDown(() => tester.binding.setSurfaceSize(null));
   });
 
@@ -441,8 +441,8 @@ void main() {
     // Keep the widget assertion close to the source summary so a future
     // change cannot silently turn scheduled work into backlog again.
     expect(weekSummary.todoCount, 1);
+    expect(find.text('已排期 1'), findsOneWidget);
     expect(find.text('待办 1'), findsOneWidget);
-    expect(find.text('待安排 1'), findsOneWidget);
 
     addTearDown(() => tester.binding.setSurfaceSize(null));
   });
